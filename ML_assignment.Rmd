@@ -1,0 +1,54 @@
+---
+title: "Machine Learning Assignment"
+author: "Bradley JK Smith"
+date: "26 October 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Executive Summary
+
+... goes here ...
+
+## Get Data
+
+This is already split into training and testing sets
+Think about whether pre-processing is required
+?? Need to fix any spelling errors in column names?? eg. #88 kurtosis\_picth\_dumbbell
+Probably set a seed here 
+(would only be required if there is some randomness is training eg. random forests)
+```{r}
+training <- read.csv('pml-training.csv')
+testing <- read.csv('pml-testing.csv')
+
+```
+
+## Exploratory Analysis
+
+- number of variables
+- if/how to use user_name (eg. one user can follow the instructions better)
+- if/how to use timestamp (eg. get better at following the instructions over time)
+
+There are sensors on the arm, forearm, belt and dumbbell
+
+How to deal with missing data (Is there missing data?)
+Whether or not to create new features
+
+Correlation between predictors - whether to use PCA
+
+
+## Discussion of what type of model to use
+
+Options are:
+
+- regression
+- trees
+- xxx
+
+Discuss the trade offs
+
+accuracy vs interpretability
+
