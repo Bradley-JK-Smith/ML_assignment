@@ -1,54 +1,134 @@
 ---
 title: "Machine Learning Assignment"
 author: "Bradley JK Smith"
-date: "26 October 2016"
+date: "02 November 2016"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
 ## Executive Summary
 
-... goes here ...
+The objective of this assignment is to build a machine learning model to predict how well participants performed a Unilateral Dumbbell Biceps Curl.
 
-## Get Data
+The input data was provided by  http://groupware.les.inf.puc-rio.br/har with the 'classe' variable defining how the participant performed the exercise. Class 'A' corresponds to a correct execution of the exercise while Classes 'B' to 'E' correspond to typical mistakes that are made.
 
-This is already split into training and testing sets
-Think about whether pre-processing is required
-?? Need to fix any spelling errors in column names?? eg. #88 kurtosis\_picth\_dumbbell
-Probably set a seed here 
-(would only be required if there is some randomness is training eg. random forests)
+The features used in the model were outputs from sensors located on the arm, belt, forearm and dumbbell. Features where sensor data was missing were removed from the data set. The input data was split into a training set (60%) and testing set (40%).
+
+Two models were created - a prediction tree and a random forest - by training on the training set and these were evaluated by calculating the accuracy of the prediction on the testing set.
+
+The prediction tree model was interpretable but had poor accuracy with an estimated out of sample error of 0.4505 (95% CI is 0.4395 to 0.4616). The random forest model was a lot more accurate with an estimated out of sample error of 0.0071 (95% CI is 0.0054 to 0.0093) but at the expense of interpretability.
+
+
+## Get Data & Install libraries
+
 ```{r}
-training <- read.csv('pml-training.csv')
-testing <- read.csv('pml-testing.csv')
+suppressPackageStartupMessages({
+  library(caret)
+  library(rattle)
+  library(rpart.plot)
+  })
 
+x <- read.csv('pml-training.csv')
+y <- read.csv('pml-testing.csv')
 ```
+
 
 ## Exploratory Analysis
 
-- number of variables
-- if/how to use user_name (eg. one user can follow the instructions better)
-- if/how to use timestamp (eg. get better at following the instructions over time)
+There are many features which are almost all NA (and often read in as a character).
 
-There are sensors on the arm, forearm, belt and dumbbell
+```{r}
+summary(x[,18:21])
+```
 
-How to deal with missing data (Is there missing data?)
-Whether or not to create new features
+Because the overwhelming majority of the values were missing for these features (for example, for max\_roll\_belt, 19,216 of 19,622 were NA) the approach taken was to simply remove any features with any missing data. This also meant that there is no requirement to impute missing values.
 
-Correlation between predictors - whether to use PCA
+In addition, there are identification features (such as time, name, etc.) in the first 7 columns which are not useable so remove these as well. (In fact, we don't want to use the name of the participant because this would not be transferrable to other users.)
+
+```{r}
+x[,'classe'] <- as.factor(x[,'classe'])
+filter <- rep(TRUE, ncol(x))
+for( i in 1:159) {
+  idx <- is.na(x[,i]) | x[,i] == ""
+  if( sum(idx) > 0 | i < 8) { filter[i] <- FALSE }
+}
+x <- x[,filter]
+```
+
+## Data Partitions
+
+A random number seed was set so that the analysis is reproducible. For training the model, 60% of the available data is used. The remaining 40% is used for testing.
+
+```{r}
+set.seed(53421)
+inTrain <- createDataPartition(x$classe, p = 0.6, list = FALSE)
+training <- x[inTrain, ]
+testing <- x[-inTrain, ]
+```
 
 
-## Discussion of what type of model to use
+## First attempt: Predicting with a tree
 
-Options are:
+For the first model, a prediction tree was used. This will probably be just OK but has the advantage of being interpretable and will aid in determining a improved model.
 
-- regression
-- trees
-- xxx
+``` {r}
+modFit <- train(classe ~ ., data=training, method='rpart')
+modFit
+modFit$finalModel
+fancyRpartPlot(modFit$finalModel, sub='')
+```
 
-Discuss the trade offs
+This model has roll_belt as the first split point. The graph shows that this does split out some of the 'E' class.
 
-accuracy vs interpretability
+```{r}
+qplot(roll_belt,colour=classe,data=training,geom='density')
+```
 
+The predictions from the model show that the accuracy of the model is quite low at 55%
+
+```{r}
+testFit <- predict(modFit, newdata=testing)
+cm <- confusionMatrix(testFit, testing$classe)
+out_of_sample <- 1-cm$overall[c('Accuracy', 'AccuracyUpper', 'AccuracyLower')]
+names(out_of_sample) <- c('OOS', 'OOS_Lower', 'OOS_Uppwer')
+cm
+out_of_sample
+```
+
+
+## Second attempt: Random forest
+
+Given that the prediction tree showed some promise, the next step is trying a random forest model. This is likely to yield a more accurate model but will be less interpretable.
+
+As the time taken to train the model increases significantly, 100 trees were chosen.
+
+``` {r}
+time_start <- Sys.time()
+modFit2 <- train(classe ~ ., data=training, method='rf', ntree=100)
+Sys.time() - time_start
+```
+
+
+The confusion matrix shows that the performance has increased dramatically.
+
+```{r}
+testFit2 <- predict(modFit2, newdata=testing)
+cm2 <- confusionMatrix(testFit2, testing$classe)
+out_of_sample2 <- 1-cm2$overall[c('Accuracy', 'AccuracyUpper', 'AccuracyLower')]
+names(out_of_sample2) <- c('OOS', 'OOS_Lower', 'OOS_Uppwer')
+cm2
+out_of_sample2
+```
+
+## Conclusion
+
+The prediction tree gives an interpretable model but with low accuracy of 0.5495 on the testing sample. The estimated out of sample error is 0.4505 (95% CI is 0.4395 to 0.4616).
+
+The random forest improves the accuracy of the prediction to 0.9929 but at the expense of interpretability. The estimated out of sample error is 0.0071 (95% CI is 0.0054 to 0.0093).
+
+
+## Prediction
+
+```{r}
+predictFit <- predict(modFit2, y)
+predictFit
+```
